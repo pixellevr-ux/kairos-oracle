@@ -6,13 +6,14 @@ class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         price = "0"
         try:
-            # On utilise urllib au lieu de requests (plus stable sur Vercel Free)
             url = "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT"
-            with urllib.request.urlopen(url, timeout=5) as response:
+            # On ajoute un User-Agent pour que Binance accepte la requête
+            req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=5) as response:
                 data = json.loads(response.read().decode())
                 price = data.get('price', '0')
         except Exception as e:
-            price = "Erreur Connection"
+            price = "API Busy"
 
         payload = {
             "token": "SOL/USDT",
