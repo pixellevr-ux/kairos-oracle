@@ -2,93 +2,108 @@ import streamlit as st
 import pandas as pd
 import requests
 import random
+import urllib.parse
 
-# --- CONFIGURATION DE LA PAGE ---
-st.set_page_config(page_title="KAIROS v28.0", layout="wide", initial_sidebar_state="collapsed")
+# --- CONFIGURATION ---
+st.set_page_config(page_title="KAIROS v30.0 OMNISCIENCE", layout="wide", initial_sidebar_state="collapsed")
 
-# Injection du look "Cyber Terminal"
 st.markdown("""
     <style>
     .main { background-color: #020204; color: #ffffff; }
-    .stTextInput>div>div>input { background-color: #0a0a0f; color: #00f2ff; border: 1px solid #0066ff; }
-    .ai-msg { background: rgba(0, 102, 255, 0.1); border-left: 4px solid #0066ff; padding: 15px; border-radius: 5px; margin-bottom: 10px; font-size: 14px; }
-    .user-msg { text-align: right; color: #00f2ff; font-weight: bold; margin-bottom: 10px; text-transform: uppercase; font-size: 12px; }
-    .q-chip { background: #0066ff; color: white; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 900; }
+    .ai-msg { background: rgba(0, 102, 255, 0.08); border-left: 3px solid #0066ff; padding: 15px; border-radius: 8px; margin-bottom: 12px; line-height: 1.5; }
+    .user-msg { text-align: right; color: #00f2ff; font-weight: 800; margin-bottom: 12px; text-transform: uppercase; font-size: 10px; letter-spacing: 1px; }
+    .q-chip { background: #0066ff; color: white; padding: 2px 8px; border-radius: 3px; font-size: 10px; font-weight: 900; margin-bottom: 5px; }
+    .search-tag { color: #00f2ff; font-family: monospace; font-size: 11px; margin-bottom: 5px; display: block; }
     </style>
     """, unsafe_allow_html=True)
 
-# --- RÉCUPÉRATION DES DONNÉES (API) ---
-@st.cache_data(ttl=60)
-def get_market_data():
+# --- FONCTION RECHERCHE WEB (MOTEUR) ---
+def web_search(query):
     try:
-        url = "https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50"
-        return requests.get(url).json()
+        # Utilisation de l'API DuckDuckGo (Instant Answer)
+        url = f"https://api.duckduckgo.com/?q={urllib.parse.quote(query)}&format=json&no_html=1"
+        r = requests.get(url).json()
+        
+        abstract = r.get('AbstractText', "")
+        if abstract:
+            return f"🌐 **RÉSULTAT DE RECHERCHE** :\n\n{abstract}\n\n*Source: Intelligence Distribuée*"
+        
+        # Si pas de résumé, on cherche dans les résultats connexes
+        related = r.get('RelatedTopics', [])
+        if related and 'Text' in related[0]:
+            return f"🌐 **INFOS TROUVÉES** :\n\n{related[0]['Text']}"
+            
+        return "Désolé, ma recherche web n'a pas retourné de résultat précis. Précise ta requête."
     except:
-        return []
+        return "Connexion au réseau de recherche interrompue."
 
-data = get_market_data()
+# --- FONCTION ALPHA (SOLANA) ---
+def get_solana_alpha():
+    try:
+        url = "https://api.dexscreener.com/latest/dex/search?q=solana"
+        r = requests.get(url).json()
+        pairs = r.get('pairs', [])
+        if pairs:
+            top = pairs[0]
+            return f"🚨 **SIGNAL ALPHA** : **{top['baseToken']['name']}** ({top['baseToken']['symbol']})\n• Vol 24h: {float(top['volume']['h24']):,.0f}$\n• Liquidité: {float(top['liquidity']['usd']):,.0f}$"
+    except: return "Erreur scan Solana."
+    return "Rien sur Solana."
 
-# --- LE CERVEAU GEMINI (Logique de réponse) ---
+# --- DATA MARKET ---
+@st.cache_data(ttl=60)
+def get_market():
+    try: return requests.get("https://api.coingecko.com/api/v3/coins/markets?vs_currency=usd&order=market_cap_desc&per_page=50").json()
+    except: return []
+
+market_data = get_market()
+
+# --- MOTEUR GEMINI (LOGIQUE DE DÉCISION) ---
 def gemini_engine(prompt):
     msg = prompt.lower().strip()
     
-    # 1. PRIORITÉ : IDENTITÉ
-    if any(x in msg for x in ["t'es qui", "qui es-tu", "ton nom", "qui est tu", "c'est quoi kairos"]):
-        return "Je suis **KAIROS**, ton interface Gemini-Core. Mon noyau est optimisé pour l'analyse de données et le scan de flux. Pas de blabla, juste de la performance."
+    # 1. SÉCURITÉ IDENTITÉ (Priorité Absolue)
+    if any(x in msg for x in ["t'es qui", "qui es-tu", "ton nom", "c'est quoi kairos"]):
+        return "Je suis **KAIROS**, ton interface Gemini-Core. Je combine un scanneur blockchain temps-réel et un moteur de recherche global."
 
-    # 2. ANALYSE RÉSEAUX
-    if any(x in msg for x in ["réseau", "network", "blockchain", "chaîne"]):
-        return "Analyse des couches terminée. **Solana** domine le volume on-chain actuel. **Base** montre une forte accumulation sur les narratifs émergents. Quel secteur on scanne ?"
+    # 2. COMMANDE ALPHA
+    if any(x in msg for x in ["alpha", "pépite", "solana"]):
+        return get_solana_alpha()
 
-    # 3. DÉTECTION CRYPTO PRÉCISE
-    for coin in data:
+    # 3. SCAN CRYPTO LOCAL
+    for coin in market_data:
         if coin['symbol'].lower() == msg or coin['name'].lower() in msg:
-            change = coin['price_change_percentage_24h']
-            vibe = "en hausse" if change > 0 else "en correction"
-            return f"Analyse de **{coin['name']}** : Prix actuel {coin['current_price']}$. L'actif est {vibe} ({change:.2f}%). On surveille la cassure ?"
+            return f"📊 **{coin['name']}** : {coin['current_price']}$ ({coin['price_change_percentage_24h']:.2f}%)"
 
-    # 4. PRÉDICTIONS / HAUSSE
-    if any(x in msg for x in ["hausse", "prédis", "prévision", "combien", "gagner"]):
-        gain = random.randint(400, 1700)
-        return f"Mes modèles détectent une accumulation de volume. Je projette une accélération de **+{gain}%** sur les secteurs à haute volatilité."
+    # 4. MODE MOTEUR DE RECHERCHE (Si aucune commande crypto n'est détectée)
+    if len(msg.split()) > 1: # Si la phrase contient plusieurs mots, on cherche sur le web
+        return web_search(prompt)
 
-    # 5. SCAN GLOBAL
-    if any(x in msg for x in ["quoi", "acheter", "scan", "plan"]):
-        top = max(data, key=lambda x: x['price_change_percentage_24h'])
-        return f"Scan terminé. Le signal le plus nerveux est sur **{top['symbol'].upper()}** (+{top['price_change_percentage_24h']:.2f}%). C'est le vecteur idéal actuel."
+    return "Instruction reçue. Tape **ALPHA** pour Solana, ou pose-moi une question sur n'importe quel sujet pour lancer une recherche web."
 
-    # 6. SALUTATIONS
-    if any(x in msg for x in ["salut", "bonsoir", "hello", "bonjour"]):
-        return "Système opérationnel. Les flux mondiaux sont synchronisés. On lance un scan ?"
+# --- UI ---
+st.markdown('<div class="q-chip">SYSTEM: OMNISCIENCE</div>', unsafe_allow_html=True)
+st.title("KAIROS v30.0")
 
-    return "Instruction reçue. Je traite l'info. Donne-moi un nom d'actif ou demande-moi un scan général des réseaux."
+col1, col2 = st.columns([1, 1.2])
 
-# --- INTERFACE VISUELLE ---
-st.markdown('<div class="q-chip">NEURAL CORE</div>', unsafe_allow_html=True)
-st.title("KAIROS v28.0 PURE GEMINI")
-
-col_m, col_c = st.columns([1, 1.2])
-
-with col_m:
-    st.subheader("📊 LIVE MARKET DATA")
-    if data:
-        df = pd.DataFrame(data)[['symbol', 'current_price', 'price_change_percentage_24h']]
-        df.columns = ['ASSET', 'PRICE ($)', '24H %']
+with col1:
+    st.subheader("📊 MARKET FLUX")
+    if market_data:
+        df = pd.DataFrame(market_data)[['symbol', 'current_price', 'price_change_percentage_24h']]
         st.dataframe(df, use_container_width=True, hide_index=True)
 
-with col_c:
-    st.subheader("💬 CHAT INTERFACE")
+with col2:
     if "messages" not in st.session_state:
-        st.session_state.messages = [{"role": "ai", "content": "Système en ligne. Prêt pour le scan. On commence par quoi ?"}]
+        st.session_state.messages = [{"role": "ai", "content": "KAIROS v30.0 en ligne. Moteur de recherche web et scanner Solana synchronisés."}]
 
     for m in st.session_state.messages:
-        role = "GEMINI" if m["role"] == "ai" else "YOU"
         div = "ai-msg" if m["role"] == "ai" else "user-msg"
-        st.markdown(f'<div class="{div}"><b>{role}:</b> {m["content"]}</div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="{div}"><b>{"KAIROS" if m["role"]=="ai" else "YOU"}:</b> {m["content"]}</div>', unsafe_allow_html=True)
 
-    u_input = st.chat_input("Injection de commande...")
+    u_input = st.chat_input("Rechercher sur le web ou scanner crypto...")
     if u_input:
         st.session_state.messages.append({"role": "user", "content": u_input})
-        res = gemini_engine(u_input)
-        st.session_state.messages.append({"role": "ai", "content": res})
+        with st.spinner("Recherche en cours..."):
+            response = gemini_engine(u_input)
+        st.session_state.messages.append({"role": "ai", "content": response})
         st.rerun()
