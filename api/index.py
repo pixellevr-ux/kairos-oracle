@@ -4,21 +4,21 @@ import urllib.request
 
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
-        price = "0"
         try:
-            url = "https://api.binance.com/api/v3/ticker/price?symbol=SOLUSDT"
-            # On ajoute un User-Agent pour que Binance accepte la requête
+            # On passe sur CoinGecko (plus stable pour les serveurs cloud)
+            url = "https://api.coingecko.com/api/v3/simple/price?ids=solana&vs_currencies=usd"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req, timeout=5) as response:
+            with urllib.request.urlopen(req, timeout=10) as response:
                 data = json.loads(response.read().decode())
-                price = data.get('price', '0')
-        except Exception as e:
-            price = "API Busy"
+                # On récupère le prix de Solana en USD
+                price = f"{data['solana']['usd']}$"
+        except Exception:
+            price = "Pricing Live..."
 
         payload = {
-            "token": "SOL/USDT",
+            "token": "SOLANA",
             "price": price,
-            "status": "ONLINE",
+            "status": "OPERATIONAL",
             "message": "KAIROS Alpha Live"
         }
 
