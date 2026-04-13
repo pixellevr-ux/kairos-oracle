@@ -5,7 +5,7 @@ import urllib.request
 class handler(BaseHTTPRequestHandler):
     def do_GET(self):
         try:
-            # On demande BTC, ETH, SOL et LTC
+            # Récupération de BTC, ETH, SOL et LTC en une seule fois
             url = "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,solana,litecoin&vs_currencies=usd"
             req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
             with urllib.request.urlopen(req, timeout=10) as response:
